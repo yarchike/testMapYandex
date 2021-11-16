@@ -53,10 +53,11 @@ class MainActivity : AppCompatActivity() {
 //            TARGET_LOCATION2,
 //            ViewProvider(view2)
 //        )
+        val textView = findViewById<TextView>(R.id.search_edit)
         val listener = MapObjectTapListener { mapObject, point ->
             Log.d("MyLogS", "mapObject ${mapObject}")
             Log.d("MyLogS", "point ${point}")
-            search_edit.text = view.text
+            textView.text = view.text
             false
         }
 
