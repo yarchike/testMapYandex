@@ -3,6 +3,8 @@ package com.martynov.testmapyandex
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.setPadding
@@ -54,9 +56,11 @@ class MainActivity : AppCompatActivity() {
 //            ViewProvider(view2)
 //        )
         val textView = findViewById<TextView>(R.id.search_edit)
+        val ll = findViewById<LinearLayout>(R.id.LL)
         val listener = MapObjectTapListener { mapObject, point ->
             Log.d("MyLogS", "mapObject ${mapObject}")
             Log.d("MyLogS", "point ${point}")
+            ll.visibility = View.VISIBLE
             textView.text = view.text
             false
         }
