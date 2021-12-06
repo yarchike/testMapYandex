@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <Button
+        android:id="@+id/button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Button" />
 
     <com.yandex.mapkit.mapview.MapView
         android:id="@+id/mapview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
+
+    </com.yandex.mapkit.mapview.MapView>
 
     <LinearLayout
         android:id="@+id/LL"
@@ -15,16 +24,14 @@
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="100dp"
         android:visibility="gone"
+        tools:visibility="visible"
+        android:background="@color/white"
         android:orientation="horizontal">
 
-        <TextView
-            android:padding="16dp"
-            android:id="@+id/search_edit"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="20sp"
-            android:maxLines="1"
-            android:text="cafe" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rcw"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:layout_height="match_parent" />
     </LinearLayout>
 </RelativeLayout>
