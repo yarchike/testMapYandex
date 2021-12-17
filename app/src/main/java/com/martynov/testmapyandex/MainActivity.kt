@@ -3,32 +3,32 @@ package com.martynov.testmapyandex
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.PointF
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.view.setPadding
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.yandex.mapkit.MapKitFactory
-import com.yandex.mapkit.geometry.Point
-import com.yandex.runtime.ui_view.ViewProvider
-import kotlinx.android.synthetic.main.activity_main.*
 import androidx.recyclerview.widget.PagerSnapHelper
-
+import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SnapHelper
 import com.yandex.mapkit.Animation
+import com.yandex.mapkit.MapKitFactory
+import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.layers.ObjectEvent
 import com.yandex.mapkit.map.*
+import com.yandex.mapkit.search.*
 import com.yandex.mapkit.user_location.UserLocationLayer
 import com.yandex.mapkit.user_location.UserLocationObjectListener
 import com.yandex.mapkit.user_location.UserLocationView
+import com.yandex.runtime.Error
 import com.yandex.runtime.image.ImageProvider
+import com.yandex.runtime.ui_view.ViewProvider
+import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.cluster.*
 import kotlinx.android.synthetic.main.view_count.*
 import kotlinx.android.synthetic.main.view_count.view.*
 
@@ -40,12 +40,23 @@ class MainActivity : AppCompatActivity() {
     val myAdapter = Adapter()
     val listPlacemarkMapObject = arrayListOf<PlacemarkMapObject>()
     private val listView = arrayListOf<UserDataTemplase>()
+    private lateinit var searchSession: Session
+    private lateinit var searchManager: SearchManager
+
     @SuppressLint("ResourceAsColor")
     private val listener = MapObjectTapListener { mapObject, point ->
         val data = mapObject.userData as UserDataTemplase
+        Log.d("MyLogS", "data ${data}")
         clickPoint(data)
         false
     }
+    var clusterListener = ClusterListener { cluster ->
+        // We setup cluster appearance and tap handler in this method
+        cluster.appearance.setView(ViewProvider(newView().apply {
+            textView.text = cluster.size.toString()
+        }))
+    }
+    lateinit var clusterizedCollection: ClusterizedPlacemarkCollection
     lateinit var userLocationLayer: UserLocationLayer
     private val listenerLocationObjectListener = object : UserLocationObjectListener {
         override fun onObjectAdded(userLocationView: UserLocationView) {
@@ -65,8 +76,12 @@ class MainActivity : AppCompatActivity() {
                     applicationContext, R.drawable.user_position
                 )
             )
-            userLocationView.pin.setIcon(ImageProvider.fromResource(applicationContext,  R.drawable.user_position))
-
+            userLocationView.pin.setIcon(
+                ImageProvider.fromResource(
+                    applicationContext,
+                    R.drawable.user_position
+                )
+            )
 
 
         }
@@ -78,6 +93,36 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
+    private val searchListener = object : Session.SearchListener {
+        override fun onSearchResponse(response: Response) {
+            val mapObjects = mapView.map.mapObjects
+            mapObjects.clear()
+            response.collection.children.forEach {
+                val resultLocation: Point? = it.obj?.geometry?.get(0)?.point
+                Log.d("MyLogS", "${resultLocation?.latitude} ${resultLocation?.longitude}")
+                if (resultLocation != null) {
+                    Log.d("MyLogS", "${resultLocation}")
+                    addHome(resultLocation)
+                }
+
+            }
+        }
+
+        override fun onSearchError(p0: Error) {
+        }
+
+
+    }
+
+    fun addHome(point: Point) {
+        mapView.map.mapObjects.addPlacemark(
+            point,
+            ImageProvider.fromResource(applicationContext, R.drawable.ic_home_ad)
+        ).apply {
+            userData = "asdas"
+        }
+
+    }
 
 
     @SuppressLint("SetTextI18n", "UseCompatLoadingForDrawables")
@@ -85,9 +130,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         MapKitFactory.setApiKey(MAPKIT_API_KEY)
         MapKitFactory.initialize(this)
-
+        SearchFactory.initialize(this)
         addView()
         setContentView(R.layout.activity_main)
+        clusterizedCollection =
+            mapView.getMap().getMapObjects().addClusterizedPlacemarkCollection(clusterListener)
+
         myAdapter.add(listView)
         Log.d("MyLogS", "${rcw != null}")
         val mSnapHelper: SnapHelper = PagerSnapHelper()
@@ -98,7 +146,7 @@ class MainActivity : AppCompatActivity() {
                 LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
 
         }
-        user_location_fab.setImageResource(R.drawable.ic_polygon_1)
+
         rcw.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
@@ -113,81 +161,38 @@ class MainActivity : AppCompatActivity() {
 
         })
 
+
         for (i in listView) {
-            listPlacemarkMapObject.add(mapView.map.mapObjects.addPlacemark(
-                i.point,
-                ViewProvider(i.textView)
-            ).apply { userData = i })
+//            listPlacemarkMapObject.add(mapView.map.mapObjects.addPlacemark(
+//                i.point,
+//                ViewProvider(i.textView)
+//            ).apply { userData = i })
+            listPlacemarkMapObject.add(
+                clusterizedCollection.addPlacemark(
+                    i.point,
+                    ViewProvider(i.textView)
+                ).apply { userData = i })
+
         }
+        clusterizedCollection.clusterPlacemarks(60.0, 15)
+
+
+
+
         mapView.map.move(
             CameraPosition(
-                TARGET_LOCATION, 15F, 0F, 0F
+                Point(55.919483, 37.869954), 15F, 0F, 0F
             )
         )
         mapView.map.addCameraListener { map, cameraPosition, cameraUpdateReason, b ->
             if (b) {
+                userLocationLayer.resetAnchor()
                 Log.d("MyLogS", "движение")
             }
 
         }
         button.setOnClickListener {
-
-
-            val leftCornerLatitude = mapView.map.visibleRegion.topLeft.latitude
-            val leftCornerLongitude = mapView.map.visibleRegion.topLeft.longitude
-
-
-            Log.d(
-                "MyLogS",
-                "leftCornerLatitude ${leftCornerLatitude}  leftCornerLongitude ${leftCornerLongitude}"
-            )
-            val rightCornerLatitude = mapView.map.visibleRegion.bottomRight.latitude
-            val rightCornerLongitude = mapView.map.visibleRegion.bottomRight.longitude
-            Log.d(
-                "MyLogS",
-                "rightCornerLatitude ${rightCornerLatitude}  rightCornerLongitude ${rightCornerLongitude}"
-            )
-            val x = UserDataTemplase(
-                Point(
-                    mapView.map.cameraPosition.target.latitude,
-                    mapView.map.cameraPosition.target.longitude
-                ), newView().apply {
-                    textView.text = "X"
-                }, "X", false
-            )
-            val y = UserDataTemplase(
-                Point(leftCornerLatitude, leftCornerLongitude),
-                newView().apply {
-                    textView.text = "Y"
-                },
-                "Y",
-                false
-            )
-            val z = UserDataTemplase(
-                Point(rightCornerLatitude, rightCornerLongitude),
-                newView().apply {
-                    textView.text = "Z"
-                },
-                "Z",
-                false
-            )
-
-            mapView.map.mapObjects.addPlacemark(
-                x.point,
-                ViewProvider(x.textView)
-            ).apply {
-                userData = x
-            }
-            mapView.map.mapObjects.addPlacemark(
-                y.point,
-                ViewProvider(y.textView)
-            ).userData = y
-
-            mapView.map.mapObjects.addPlacemark(
-                z.point,
-                ViewProvider(z.textView)
-            ).userData = z
-
+            coordinate()
         }
 
         mapView.map.mapObjects.addTapListener(listener)
@@ -203,10 +208,120 @@ class MainActivity : AppCompatActivity() {
         userLocationLayer.isHeadingEnabled = true
         //userLocationLayer.setObjectListener(listenerLocationObjectListener)
         button2.setOnClickListener {
+            if (listPlacemarkMapObject.isNotEmpty()) {
+                val iterator = listPlacemarkMapObject.iterator()
+                while (iterator.hasNext()) {
+                    mapView.map.mapObjects.remove(iterator.next())
+                    iterator.remove()
+
+
+                }
+//                Log.d("MyLogS","${listPlacemarkMapObject}")
+//                listPlacemarkMapObject.forEach {
+//                    listPlacemarkMapObject.remove(it)
+//                    mapView.map.mapObjects.remove(it)
+//
+//                }
+            }
+            //cameraUserPosition()
+        }
+        user_location_fab.setOnClickListener {
             cameraUserPosition()
         }
+        /////
+
+        searchManager = SearchFactory.getInstance().createSearchManager(SearchManagerType.COMBINED)
+        val homeAdress = "королев пр-т космонавтов д 9"
+        submitQuery(homeAdress)
+
+    }
+
+    private fun coordinate() {
+        val leftCornerLatitude = mapView.map.visibleRegion.topLeft.latitude
+        val leftCornerLongitude = mapView.map.visibleRegion.topLeft.longitude
 
 
+        val rightCornerLatitude = mapView.map.visibleRegion.bottomRight.latitude
+        val rightCornerLongitude = mapView.map.visibleRegion.bottomRight.longitude
+
+        val otstupX = (leftCornerLatitude - rightCornerLatitude) / 2
+        val otstupY = (rightCornerLongitude - leftCornerLongitude) / 2
+
+
+        val yPlus = UserDataTemplase(
+            Point(leftCornerLatitude + otstupX, leftCornerLongitude - otstupY),
+            newView().apply {
+                textView.text = "YPLUS"
+            }, "YYPLUS", false
+        )
+        val xPlus = UserDataTemplase(
+            Point(rightCornerLatitude - otstupX, rightCornerLongitude + otstupY),
+            newView().apply {
+                textView.text = "XPLUS"
+            }, "XPLUS", false
+        )
+
+        val z = UserDataTemplase(
+            Point(
+                mapView.map.cameraPosition.target.latitude,
+                mapView.map.cameraPosition.target.longitude
+            ), newView().apply {
+                textView.text = "Z"
+            }, "Z", false
+        )
+        val y = UserDataTemplase(
+            Point(leftCornerLatitude, leftCornerLongitude),
+            newView().apply {
+                textView.text = "Y"
+            },
+            "Y",
+            false
+        )
+        val x = UserDataTemplase(
+            Point(rightCornerLatitude, rightCornerLongitude),
+            newView().apply {
+                textView.text = "X"
+            },
+            "X",
+            false
+        )
+
+        Log.d(
+            "MyLogS",
+            "otstupX ${otstupX}  otstupY ${otstupY}"
+        )
+        mapView.map.mapObjects.addPlacemark(
+            x.point,
+            ViewProvider(x.textView)
+        ).apply {
+            userData = x
+        }
+        mapView.map.mapObjects.addPlacemark(
+            y.point,
+            ViewProvider(y.textView)
+        ).userData = y
+
+        mapView.map.mapObjects.addPlacemark(
+            z.point,
+            ViewProvider(z.textView)
+        ).userData = z
+
+        mapView.map.mapObjects.addPlacemark(
+            xPlus.point,
+            ViewProvider(xPlus.textView)
+        ).userData = xPlus
+
+        mapView.map.mapObjects.addPlacemark(
+            yPlus.point,
+            ViewProvider(yPlus.textView)
+        ).userData = yPlus
+
+        val input = entry(
+            Point(leftCornerLatitude + otstupX, leftCornerLongitude - otstupY),
+            Point(rightCornerLatitude - otstupX, rightCornerLongitude + otstupY),
+            Point(56.332265, 36.808615)
+        )
+        Log.d("MyLogS", "${input}")
     }
 
     override fun onStart() {
@@ -304,11 +419,10 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    fun allNoClick() {
+    private fun allNoClick() {
         for (i in listPlacemarkMapObject) {
             val data = (i.userData as UserDataTemplase)
             data.isClicked = false
-            Log.d("MyLogS","${data.text}")
             i.setView(ViewProvider(newView().apply {
                 textView.text = data.text
             }))
@@ -319,13 +433,13 @@ class MainActivity : AppCompatActivity() {
         data: UserDataTemplase,
         isHide: Boolean = true
     ) {
-        val index = listView.indexOfFirst { it.equals(data) }
-        Log.d("MyLogS", "${index}")
+        val index =
+            listPlacemarkMapObject.indexOfFirst { (it.userData as UserDataTemplase) == data }
         if (!data.isClicked) {
             allNoClick()
             data.isClicked = true
             if (isHide) LL.visibility = View.VISIBLE
-            listPlacemarkMapObject[index].setView(ViewProvider(selectNewVIew().apply {
+            listPlacemarkMapObject[index].setView(ViewProvider(selectNewView().apply {
                 textView.text = data.text
             }))
         } else {
@@ -368,11 +482,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun newView():View{
-        return  LayoutInflater.from(this).inflate(R.layout.view_count, null)
+    private fun newView(): View {
+        return LayoutInflater.from(this).inflate(R.layout.view_count, null)
     }
-    fun selectNewVIew():View{
-        return  LayoutInflater.from(this).inflate(R.layout.view_count_select, null)
+
+    private fun selectNewView(): View {
+        return LayoutInflater.from(this).inflate(R.layout.view_count_select, null)
+    }
+
+    fun newClusterVIew(): View {
+        return LayoutInflater.from(this).inflate(R.layout.cluster, null)
+    }
+
+    private fun entry(leftTopPoint: Point, rightBotPoint: Point, point: Point): Boolean {
+        if (leftTopPoint.latitude > point.latitude && leftTopPoint.longitude < point.longitude) {
+            if (rightBotPoint.latitude < point.latitude && rightBotPoint.longitude > point.longitude) {
+                return true
+            }
+        }
+        return false
+    }
+
+
+    private fun submitQuery(query: String) {
+        searchSession = searchManager.submit(
+            query,
+            VisibleRegionUtils.toPolygon(mapView.map.visibleRegion),
+            SearchOptions(),
+            searchListener
+        )
     }
 
 
